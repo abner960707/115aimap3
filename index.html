@@ -1,0 +1,160 @@
+<!-- ... existing code ... -->
+    .map-container {
+      height: calc(100vh - 64px);
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+      min-height: 350px;
+      background-color: #e5e7eb;
+    }
+    
+    @media (max-width: 768px) {
+      .map-container {
+        height: calc(100vh - 110px);
+      }
+    }
+
+    /* Custom Leaflet Marker Pulse Effect */
+<!-- ... existing code ... -->
+    <!-- Main Content Area -->
+    <div class="flex flex-col md:flex-row flex-1 overflow-hidden relative">
+      
+      <!-- Mobile Tab Switchers -->
+      <div class="flex md:hidden bg-slate-200 p-1 border-b border-slate-300 shrink-0 z-20">
+        <button id="tab-list" class="flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 flex items-center justify-center gap-1">
+          <i class="fa-solid fa-list"></i> 列表檢視
+        </button>
+        <button id="tab-map" class="flex-1 py-1.5 text-xs font-semibold rounded-md bg-white shadow text-slate-800 flex items-center justify-center gap-1">
+          <i class="fa-solid fa-map-location-dot"></i> 地圖檢視
+        </button>
+      </div>
+
+      <!-- Sidebar Control Panel -->
+      <aside id="sidebar-panel" class="hidden md:flex w-full md:w-96 lg:w-[420px] bg-white border-r border-slate-200 flex-col h-full shrink-0 z-10">
+<!-- ... existing code ... -->
+    // Initial Map Center (Kaohsiung City Center)
+    const KAOHSIUNG_CENTER = [22.6397, 120.3021];
+    const INITIAL_ZOOM = 13;
+
+    // Initialize Leaflet Map
+    const map = L.map('map', { zoomControl: false }).setView(KAOHSIUNG_CENTER, INITIAL_ZOOM);
+    
+    // Add Custom Zoom Control on Bottom Right
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Primary Tile Layer: OpenStreetMap Standard (無須 API Key)
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 貢獻者'
+    });
+
+    // Secondary Tile Layer: Esri World Street Map (無須 API Key)
+    const esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom'
+    });
+
+    // 預設載入 OpenStreetMap 圖資
+    osmLayer.addTo(map);
+
+    // 加入底圖切換控制選項 (位於左下角)
+    const baseMaps = {
+      "OpenStreetMap 標準地圖": osmLayer,
+      "Esri 高清街道圖": esriLayer
+    };
+    L.control.layers(baseMaps, null, { position: 'bottomleft' }).addTo(map);
+
+    const markersGroup = L.layerGroup().addTo(map);
+<!-- ... existing code ... -->
+    // Bind Event Listeners
+    function bindEvents() {
+      document.getElementById('search-input').addEventListener('input', applyFilters);
+      document.getElementById('district-filter').addEventListener('change', applyFilters);
+      document.getElementById('item-filter').addEventListener('change', applyFilters);
+
+      document.getElementById('search-clear').addEventListener('click', () => {
+        document.getElementById('search-input').value = '';
+        applyFilters();
+      });
+
+      document.getElementById('btn-reset-filters').addEventListener('click', () => {
+        document.getElementById('search-input').value = '';
+        document.getElementById('district-filter').value = '';
+        document.getElementById('item-filter').value = '';
+        selectedItemId = null;
+        applyFilters();
+        map.flyTo(KAOHSIUNG_CENTER, INITIAL_ZOOM);
+        setTimeout(() => map.invalidateSize(), 200);
+      });
+
+      document.getElementById('btn-reset-map').addEventListener('click', () => {
+        selectedItemId = null;
+        applyFilters();
+        map.flyTo(KAOHSIUNG_CENTER, INITIAL_ZOOM);
+        setTimeout(() => map.invalidateSize(), 200);
+      });
+
+      // Handle window resize to trigger Leaflet layout recalculation
+      window.addEventListener('resize', () => {
+        if (map) map.invalidateSize();
+      });
+
+      // CSV File Upload Listener
+      document.getElementById('csv-file-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          parseCSVData(evt.target.result);
+        };
+        reader.readAsText(file);
+      });
+
+      // Mobile Tab Controls
+      document.getElementById('tab-list').addEventListener('click', () => {
+        document.getElementById('sidebar-panel').classList.remove('hidden');
+        document.getElementById('sidebar-panel').classList.add('flex');
+        document.getElementById('map-panel').classList.add('hidden');
+        document.getElementById('map-panel').classList.remove('block');
+        document.getElementById('tab-list').className = 'flex-1 py-1.5 text-xs font-semibold rounded-md bg-white shadow text-slate-800 flex items-center justify-center gap-1';
+        document.getElementById('tab-map').className = 'flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 flex items-center justify-center gap-1';
+      });
+
+      document.getElementById('tab-map').addEventListener('click', switchToMapTab);
+
+      // Stats Modal Triggers
+      document.getElementById('btn-stats').addEventListener('click', showStatsModal);
+      document.getElementById('btn-close-stats').addEventListener('click', () => {
+        document.getElementById('modal-stats').classList.add('hidden');
+      });
+    }
+
+    function switchToMapTab() {
+      document.getElementById('sidebar-panel').classList.add('hidden');
+      document.getElementById('sidebar-panel').classList.remove('flex');
+      document.getElementById('map-panel').classList.remove('hidden');
+      document.getElementById('map-panel').classList.add('block');
+      document.getElementById('tab-map').className = 'flex-1 py-1.5 text-xs font-semibold rounded-md bg-white shadow text-slate-800 flex items-center justify-center gap-1';
+      document.getElementById('tab-list').className = 'flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 flex items-center justify-center gap-1';
+      
+      // Force immediate and delayed resize calculation
+      map.invalidateSize();
+      setTimeout(() => map.invalidateSize(), 250);
+    }
+<!-- ... existing code ... -->
+    // Window Load Entry Point
+    window.onload = function() {
+      bindEvents();
+      parseCSVData(EMBEDDED_CSV_STRING);
+      
+      // Force map bounds & size recalculation on page load
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 300);
+    };
+  </script>
+</body>
+</html>
